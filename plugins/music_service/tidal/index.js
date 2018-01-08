@@ -1,7 +1,6 @@
 const libQ = require('kew');
 const Conf = require('v-conf');
 const TidalAPI = require('tidalapi');
-const Sox = require('sox');
 
 module.exports = class ControllerTidalPlugin {
   constructor(context) {
