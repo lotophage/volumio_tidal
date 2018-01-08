@@ -3,7 +3,7 @@ const Conf = require('v-conf');
 const TidalAPI = require('tidalapi');
 const Sox = require('sox');
 
-module.exports = class ControllerTidaPlugin {
+module.exports = class ControllerTidalPlugin {
   constructor(context) {
     this.context = context;
     this.commandRouter = this.context.coreCommand;
@@ -43,7 +43,7 @@ module.exports = class ControllerTidaPlugin {
     this.api = new TidalAPI({
       username: '',
       password: '',
-      token: 'BI218mwp9ERZ3PFI', // BI218mwp9ERZ3PFI
+      token: '',
       quality: 'HI_RES',
     });
 
