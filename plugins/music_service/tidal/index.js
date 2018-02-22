@@ -1,3 +1,5 @@
+'use strict';
+
 const libQ = require('kew');
 const Conf = require('v-conf');
 const TidalAPI = require('tidalapi');
@@ -218,7 +220,8 @@ module.exports = class ControllerTidalPlugin {
    */
   seek(timepos) {
     this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::seek to ${timepos}`);
-    return this.sendSpopCommand(`seek ${timepos}`, []);
+
+    return this.mpdPlugin.seek(position);
   }
 
   /**
@@ -227,6 +230,8 @@ module.exports = class ControllerTidalPlugin {
    */
   stop() {
     this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::stop`);
+
+    return this.mpdPlugin.sendMpdCommand('stop', []);
   }
 
   /**
@@ -235,6 +240,17 @@ module.exports = class ControllerTidalPlugin {
    */
   pause() {
     this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::pause`);
+    this.commandRouter.stateMachine.setConsumeUpdateService('mpd');
+
+    return this.mpdPlugin.sendMpdCommand('pause', []);
+  }
+
+  resume = function () {
+    var self = this;
+    self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'ControllerTidalPlugin::resume');
+    self.commandRouter.stateMachine.setConsumeUpdateService('mpd');
+
+    return self.mpdPlugin.sendMpdCommand('play', []);
   }
 
   /**
@@ -243,6 +259,7 @@ module.exports = class ControllerTidalPlugin {
    */
   getState() {
     this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::getState`);
+
     return this.mpdPlugin.getState();
   }
 
