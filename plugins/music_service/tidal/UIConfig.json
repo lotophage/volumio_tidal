@@ -19,7 +19,7 @@
           "username",
           "password",
           "token",
-          "bitrate"
+          "quality"
         ]
       },
       "content": [
@@ -48,11 +48,25 @@
           "value": ""
         },
         {
-          "id": "bitrate",
-          "element": "switch",
-          "doc": "High bitrate",
-          "label": "Set for high bitrate",
-          "value": true
+          "id": "quality",
+          "element": "select",
+          "doc": "Quality",
+          "label": "Sets the playback quality",
+          "value": { "value": "HIGH", "label": "High"},
+          "options": [
+            {
+              "value": "LOW",
+              "label": "Low"
+            },
+            {
+              "value": "HIGH",
+              "label": "High"
+            },
+            {
+              "value": "LOSSLESS",
+              "label": "Lossless"
+            }
+          ]
         }
       ]
     }

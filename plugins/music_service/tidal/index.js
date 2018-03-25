@@ -31,26 +31,44 @@ module.exports = class ControllerTidalPlugin {
     return libQ.resolve();
   }
 
+  login() {
+    this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::login`);
+
+    var username = this.config.get('username');
+    var password = this.config.get('password');
+    var token = this.config.get('token');
+    var quality = this.config.get('quality');
+  
+    if (this.isSet(username) && 
+        this.isSet(password) && 
+        this.isSet(token) && 
+        this.isSet(quality)) {
+
+          this.api = new TidalAPI({
+            username: username,
+            password: password,
+            token: token,
+            // clientVersion: '2.2.1--7',
+            quality: quality
+          });
+
+          this.addToBrowseSources();
+    }
+  }
+
   /**
    * onStart
    * @return
    */
   onStart() {
     this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::onStart`);
-
-    const defer = libQ.defer();
-
     this.mpdPlugin = this.commandRouter.pluginManager.getPlugin('music_service', 'mpd');
-    this.api = new TidalAPI({
-      username: '',
-      password: '',
-      token: '',
-      quality: 'HI_RES',
-    });
+    
+    const defer = libQ.defer();
+    this.login(); // TODO: Doesn't work, need to hardcode credentials
 
     this.addToBrowseSources();
     defer.resolve();
-
     return defer.promise;
   }
 
@@ -74,11 +92,6 @@ module.exports = class ControllerTidalPlugin {
   onRestart() {
     this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::onRestart`);
     // Optional, use if you need it
-  }
-
-  resume() {
-    this.commandRouter.stateMachine.setConsumeUpdateService('mpd');
-    return this.mpdPlugin.sendMpdCommand('play', []);
   }
 
   /*
@@ -245,12 +258,15 @@ module.exports = class ControllerTidalPlugin {
     return this.mpdPlugin.sendMpdCommand('pause', []);
   }
 
-  resume = function () {
-    var self = this;
-    self.commandRouter.pushConsoleMessage('[' + Date.now() + '] ' + 'ControllerTidalPlugin::resume');
-    self.commandRouter.stateMachine.setConsumeUpdateService('mpd');
+  /**
+   * resume
+   * @return void
+   */
+  resume() {
+    this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::resume`);
+    this.commandRouter.stateMachine.setConsumeUpdateService('mpd');
 
-    return self.mpdPlugin.sendMpdCommand('play', []);
+    return this.mpdPlugin.sendMpdCommand('play', []);
   }
 
   /**
@@ -364,7 +380,7 @@ module.exports = class ControllerTidalPlugin {
           service: 'tidal',
           type: 'song',
           title: track.title,
-          artist: track.artists.name,
+          artist: track.artists[0].name, // this.getTrackArtists(track.artists),
           album: track.album.title,
           albumart: track.album.cover ? this.api.getArtURL(track.album.cover, 1280) : '',
           uri: `tidal:track:${track.id}`,
@@ -389,24 +405,46 @@ module.exports = class ControllerTidalPlugin {
     return defer.promise;
   }
 
+  getTrackArtists(artists) {
+    function artistString(artistsList) {
+      var artistsString;
+      if (artistsList.length > 1) {
+        var lastArtist = artistsList.pop();
+        artistsString = artistsList.map(artist => artist.name).join(', ') + ', and ' + lastArtist.name;
+      } else {
+        artistsString = artistsList[0].name;
+      }
+      return artistsString;
+    }
+    var allArtistsString = artistString(artists.filter(artist => artist.type == 'MAIN'));
+    var featuredArtists = artistString(artists.filter(artist => artist.type == 'FEATURED'));
+    if(featuredArtists !== '') {
+      allArtistsString += (' ft. ' + featuredArtists);
+    }
+    return allArtistsString;
+  }
+
   /**
    * saveTidalAccount
    * @return void
    */
   saveAccount(data) {
+    var self = this;    
     const defer = libQ.defer();
 
     this.config.set('username', data.username);
     this.config.set('password', data.password);
     this.config.set('token', data.token);
-    this.config.set('bitrate', data.bitrate);
+    this.config.set('quality', data.bitrate);
 
-    this.api = new TidalAPI({
-      username: data.username,
-      password: data.password,
-      token: data.token,
-      quality: 'HI_RES',
-    });
+    // this.api = new TidalAPI({
+    //   username: data.username,
+    //   password: data.password,
+    //   token: data.token,
+    //   quality: data.quality
+    // });
+    
+    this.login();
 
     this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::saveTidalAccount - ${data.username}`);
 
@@ -418,4 +456,7 @@ module.exports = class ControllerTidalPlugin {
   | Temporary methods
   |--------------------------------------------------------------------------
   */
+  isSet(variable) {
+    return variable !== '';
+  }
 };

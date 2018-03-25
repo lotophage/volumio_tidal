@@ -13,10 +13,10 @@
   },
   "token": {
     "type": "string",
-    "value": "BI218mwp9ERZ3PFI"
+    "value": ""
   },
-  "bitrate": {
-    "type": "boolean",
-    "value": true
+  "quality": {
+    "type": "string",
+    "value": ""
   }
 }
