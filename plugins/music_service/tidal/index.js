@@ -24,7 +24,7 @@ module.exports = class ControllerTidalPlugin {
     const configFile = this.commandRouter
       .pluginManager
       .getConfigurationFile(this.context, 'config.json');
-
+    
     this.config = new Conf();
     this.config.loadFile(configFile);
 
@@ -65,8 +65,14 @@ module.exports = class ControllerTidalPlugin {
     this.mpdPlugin = this.commandRouter.pluginManager.getPlugin('music_service', 'mpd');
     
     const defer = libQ.defer();
-    this.login(); // TODO: Doesn't work, need to hardcode credentials
-
+    // this.login(); // TODO: Doesn't work, need to hardcode credentials
+    this.api = new TidalAPI({
+      username: '',
+      password: '',
+      token: '',
+      // clientVersion: '2.2.1--7',
+      quality: 'LOSSLESS'
+    });
     this.addToBrowseSources();
     defer.resolve();
     return defer.promise;
@@ -143,15 +149,6 @@ module.exports = class ControllerTidalPlugin {
     // Perform your installation tasks here
   }
 
-  /**
-   * setConf
-   * @return void
-   */
-  setConf() {
-    this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::setConf`);
-    // Perform your installation tasks here
-  }
-
   /*
   |--------------------------------------------------------------------------
   | Playback controls
@@ -178,30 +175,109 @@ module.exports = class ControllerTidalPlugin {
    * handleBrowseUri
    * @return void
    */
-  handleBrowseUri() {
-    this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::handleBrowseUri`);
-    return libQ.resolve({
+  handleBrowseUri(uri) {
+    this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::handleBrowseUri(${uri})`);
+    var response;
+
+    if (uri.startsWith('tidal')) {
+      if (uri == 'tidal') {
+        response = libQ.resolve({
+          navigation: {
+            lists: [{
+              availableListViews: [
+                'list'
+              ],
+              items: [{
+                service: 'tidal',
+                type: 'tidal-category',
+                title: 'My Playlists',
+                artist: '',
+                album: '',
+                icon: 'fa fa-folder-open-o',
+                uri: 'tidal/my_playlists'
+              },
+              {
+                service: 'tidal',
+                type: 'tidal-category',
+                title: 'My Albums',
+                artist: '',
+                album: '',
+                icon: 'fa fa-folder-open-o',
+                uri: 'tidal/my_albums'
+              }]
+            }],
+            prev: {
+              uri: 'tidal'
+            },
+          },
+        });
+      } else if (uri.startsWith('tidal/my_playlists')) {
+        response = this.listMyTracks();
+      } else if (uri.startsWith('tidal/my_albums')) {
+        response = this.listMyAlbums();
+      }
+    }
+      
+    return response;
+  }
+
+  listMyTracks() {
+    this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::listMyTracks `);
+    const defer = libQ.defer();
+    const default_icon = '/albumart?sourceicon=music_service/tidal/default_icon.svg'
+
+    var response = {
       navigation: {
         lists: [{
-          availableListViews: [
-            'list',
-          ],
-          items: [{
-            service: 'tidal',
-            type: 'tidal-category',
-            title: 'My Playlists',
-            artist: '',
-            album: '',
-            icon: 'fa fa-folder-open-o',
-            uri: 'tidal/playlists',
-          }],
+          availableListViews: ['list'],
+          items: [],
         }],
         prev: {
-          uri: 'tidal',
-        },
-      },
+          uri: 'tidal'
+        }
+      }
+    };
+
+    this.api.getMyTracks({limit: 10}, (data) => {
+      data.items.map(track => {
+        response.navigation.lists[0].items.push({
+          service: 'tidal',
+          type: 'song',
+          title: track.item.title,
+          artist: track.item.artists[0].name, // this.getTrackArtists(track.artists),
+          album: track.item.album.title,
+          albumart: track.item.album.cover ? this.api.getArtURL(track.item.album.cover, 80, 80) : default_icon,
+          uri: `tidal:track:${track.item.id}`
+        });
+      });
+      defer.resolve(response);      
     });
+
+    return defer.promise;
   }
+
+  listMyAlbums() {
+    this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::listMyTracks `);
+    const defer = libQ.defer();
+    const default_icon = '/albumart?sourceicon=music_service/tidal/default_icon.svg'
+
+    var response = {
+      navigation: {
+        lists: [{
+          availableListViews: ['list'],
+          items: [],
+        }],
+        prev: {
+          uri: 'tidal'
+        }
+      }
+    };
+
+    defer.resolve(response);
+
+    return defer.promise;
+  }
+
 
   /**
    * Define a method to clear, add, and play an array of tracks
@@ -354,6 +430,7 @@ module.exports = class ControllerTidalPlugin {
     this.commandRouter.logger.info(`[${Date.now()}] ControllerTidalPlugin::search ${JSON.stringify(q)}`);
     const defer = libQ.defer();
     const list = [];
+    const default_icon = '/albumart?sourceicon=music_service/tidal/default_icon.svg'
 
     this.api.search({
       type: 'tracks,albums,artists',
@@ -368,7 +445,7 @@ module.exports = class ControllerTidalPlugin {
           service: 'tidal',
           type: 'folder',
           title: artist.name,
-          albumart: artist.picture ? this.api.getArtURL(artist.picture, 1280) : '',
+          albumart: artist.picture ? this.api.getArtURL(artist.picture, 160, 160) : default_icon, // TODO: default pic if one can't be found
           uri: `tidal:artist:${artist.id}`,
         })),
       });
@@ -382,7 +459,7 @@ module.exports = class ControllerTidalPlugin {
           title: track.title,
           artist: track.artists[0].name, // this.getTrackArtists(track.artists),
           album: track.album.title,
-          albumart: track.album.cover ? this.api.getArtURL(track.album.cover, 1280) : '',
+          albumart: track.album.cover ? this.api.getArtURL(track.album.cover, 80, 80) : default_icon,
           uri: `tidal:track:${track.id}`,
         })),
       });
@@ -394,7 +471,7 @@ module.exports = class ControllerTidalPlugin {
           service: 'tidal',
           type: 'folder',
           title: album.title,
-          albumart: album.cover ? this.api.getArtURL(album.cover, 1280) : '',
+          albumart: album.cover ? this.api.getArtURL(album.cover, 320, 320) : default_icon,
           uri: `tidal:album:${album.id}`,
         })),
       });
@@ -405,7 +482,7 @@ module.exports = class ControllerTidalPlugin {
     return defer.promise;
   }
 
-  getTrackArtists(artists) {
+  getArtistsString(artistsInfo) {
     function artistString(artistsList) {
       var artistsString;
       if (artistsList.length > 1) {
@@ -416,12 +493,12 @@ module.exports = class ControllerTidalPlugin {
       }
       return artistsString;
     }
-    var allArtistsString = artistString(artists.filter(artist => artist.type == 'MAIN'));
-    var featuredArtists = artistString(artists.filter(artist => artist.type == 'FEATURED'));
+    var artistsString = artistString(artistsInfo.filter(artist => artist.type == 'MAIN'));
+    var featuredArtists = artistString(artistsInfo.filter(artist => artist.type == 'FEATURED'));
     if(featuredArtists !== '') {
-      allArtistsString += (' ft. ' + featuredArtists);
+      artistsString += (' ft. ' + featuredArtists);
     }
-    return allArtistsString;
+    return artistsString;
   }
 
   /**
@@ -429,7 +506,6 @@ module.exports = class ControllerTidalPlugin {
    * @return void
    */
   saveAccount(data) {
-    var self = this;    
     const defer = libQ.defer();
 
     this.config.set('username', data.username);
